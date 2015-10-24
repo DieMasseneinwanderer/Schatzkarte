@@ -1,52 +1,63 @@
 package ch.einwanderer.massen.schatzkarte;
 
-import android.os.Bundle;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
+import android.graphics.Color;
+import android.os.Environment;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
-import android.view.View;
-import android.view.Menu;
-import android.view.MenuItem;
+import android.os.Bundle;
+
+import org.osmdroid.ResourceProxy;
+import org.osmdroid.api.IMapController;
+import org.osmdroid.tileprovider.MapTileProviderArray;
+import org.osmdroid.tileprovider.MapTileProviderBase;
+import org.osmdroid.tileprovider.modules.IArchiveFile;
+import org.osmdroid.tileprovider.modules.MBTilesFileArchive;
+import org.osmdroid.tileprovider.modules.MapTileFileArchiveProvider;
+import org.osmdroid.tileprovider.modules.MapTileModuleProviderBase;
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
+import org.osmdroid.tileprovider.tilesource.XYTileSource;
+import org.osmdroid.tileprovider.util.SimpleRegisterReceiver;
+import org.osmdroid.views.MapView;
+import org.osmdroid.views.overlay.TilesOverlay;
+
+import java.io.File;
 
 public class MainActivity extends AppCompatActivity {
+
+    private MapView map;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
 
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
-            }
-        });
-    }
+        map = (MapView) findViewById(R.id.map);
+        map.setTileSource(TileSourceFactory.MAPQUESTOSM);
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
+        map.setMultiTouchControls(true);
+        map.setBuiltInZoomControls(true);
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
+        IMapController controller = map.getController();
+        controller.setZoom(18);
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
+        // Die TileSource beschreibt die Eigenschaften der Kacheln die wir anzeigen
+        XYTileSource treasureMapTileSource = new XYTileSource("mbtiles", ResourceProxy.string.offline_mode, 1, 20, 256, ".png", new String[]{"http://example.org/"});
 
-        return super.onOptionsItemSelected(item);
+        File file = new File(Environment.getExternalStorageDirectory() /* entspricht /sdcard/ */, "hsr.mbtiles");
+
+        /* Das verwenden von mbtiles ist leider ein wenig aufwändig, wir müssen
+         * unsere XYTileSource in verschiedene Klassen 'verpacken' um sie dann
+         * als TilesOverlay über der Grundkarte anzuzeigen.
+         */
+        MapTileModuleProviderBase treasureMapModuleProvider = new MapTileFileArchiveProvider(new SimpleRegisterReceiver(this),
+                treasureMapTileSource, new IArchiveFile[] { MBTilesFileArchive.getDatabaseFileArchive(file) });
+
+        MapTileProviderBase treasureMapProvider = new MapTileProviderArray(treasureMapTileSource, null,
+                new MapTileModuleProviderBase[] { treasureMapModuleProvider });
+
+        TilesOverlay treasureMapTilesOverlay = new TilesOverlay(treasureMapProvider, getBaseContext());
+        treasureMapTilesOverlay.setLoadingBackgroundColor(Color.TRANSPARENT);
+
+        // Jetzt können wir den Overlay zu unserer Karte hinzufügen:
+        map.getOverlays().add(treasureMapTilesOverlay);
     }
 }
